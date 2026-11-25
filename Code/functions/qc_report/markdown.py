@@ -900,7 +900,7 @@ def _section_qc03(
                   f"{'ok' if integrity.get('ok') else 'MISMATCH'}"]
         zones = product.get("zero_zones", {})
         if zones:
-            inset = zones.get("inset", {})
+            inset = zones.get("inset") or {}
             lines.append(
                 f"- Zone split ({zones.get('classifier', '?')} classifier): "
                 f"edge band {_pct(zones.get('zero_edge_band_pct'))} zero, "
