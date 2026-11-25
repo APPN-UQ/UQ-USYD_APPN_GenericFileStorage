@@ -369,7 +369,8 @@ def gather_runs(
             excluded.append(f"{run_dir}: {decision.reason}")
             continue
         accepted_notes.extend(f"{run_dir}: {a}"
-                              for a in decision.annotations)        fl = pd.read_csv(d / "flight_lines.csv",
+                              for a in decision.annotations)
+        fl = pd.read_csv(d / "flight_lines.csv",
                          parse_dates=["start_utc", "mid_utc", "end_utc"])
         # run_id is finalised after the crawl (labels need the union);
         # tag everything with the entry index for now

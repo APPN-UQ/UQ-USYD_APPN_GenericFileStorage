@@ -783,6 +783,12 @@ def classify_zero_zones(
     interior = _interior_zero_mask(all_zero)
     extent = load_capture_extent(extent_path)
 
+    if extent is not None:
+        # an ungeoreferenced raster (no CRS in the .hdr) cannot be lined up
+        # with the CRS84 capture polygon - fall back to connectivity
+        with rasterio.open(bin_path) as _src:
+            if _src.crs is None:
+                extent = None
     if extent is None:
         # ===== no usable polygon: border connectivity decides the ROI =====
         dropout_px = int(np.count_nonzero(interior))
