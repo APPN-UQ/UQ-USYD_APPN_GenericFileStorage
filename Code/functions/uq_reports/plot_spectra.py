@@ -64,7 +64,7 @@ def run_gobiextract(
         "shp_path": pathlib.Path(shp).as_posix(),
         "out_root": pathlib.Path(out_root).as_posix(),
         "copy_to_buffer": False,
-        "id_field": "Plot_ID" if "Plot_ID" in cols else cols[0],
+        "id_field": plot_id_field(cols),
         "id_field2": "fid" if "fid" in cols else None,
     })
     cfg_path = pathlib.Path(out_root) / f"config_{project_label}.yaml"
@@ -75,6 +75,25 @@ def run_gobiextract(
                    cwd=gobiextract_dir, env=env, check=True,
                    stdout=subprocess.DEVNULL)
     return pathlib.Path(out_root) / project_label / pathlib.Path(hdr).stem
+
+
+# ==================================================================================
+def plot_id_field(cols: List[str],
+                  prefer: Tuple[str, ...] = ("Plot_ID", "plot_id", "id")) -> str:
+    """Pick the plot ID column of a site shapefile.
+
+    Parameters
+    ----------
+    cols : list of str
+        Attribute columns (no geometry).
+    prefer : tuple of str, optional
+        Names to use, in order; falls back to the first column.
+
+    Returns
+    -------
+    str
+    """
+    return next((c for c in prefer if c in cols), cols[0])
 
 
 # ==================================================================================
@@ -226,7 +245,7 @@ def fig_plot_map(gpro: pathlib.Path, plots: gpd.GeoDataFrame, vi: pd.DataFrame,
     None
     """
     import matplotlib.pyplot as plt
-    idf = "Plot_ID" if "Plot_ID" in plots.columns else plots.columns[0]
+    idf = plot_id_field([c for c in plots.columns if c != "geometry"])
     v = vi.assign(_pid=vi["Plot_ID"].astype(str).str.split("_").str[0])
     g = plots.assign(_pid=plots[idf].astype(str)).merge(
         v[["_pid", "NDVI"]], on="_pid", how="left")

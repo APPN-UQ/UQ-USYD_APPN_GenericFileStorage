@@ -61,7 +61,9 @@ python Code/UQ_Reports/UR00_UQGobiReports.py \
     --gobiextract "C:\code\appn\GobiExtract_V2"
 ```
 
-`--path` can be any level: project, site, sensor, date or run.
+`--path` can be any level (project, site, sensor, date or run) and takes
+several paths. `--to-rdm` also copies each run's PDF to
+`<run>\T1_proc\QC_reports\` on the RDM (only that file is written).
 Other options: `--sensor` (default `Gobi`), `--allow-multi-gpro` (QC03 on runs
 with several bundles), `--skip-qa01`, `--max-small-mb`.
 
@@ -76,7 +78,7 @@ with several bundles), `--skip-qa01`, `--max-small-mb`.
 | `gobiextract/` | GobiExtract configs and outputs (`band_means.csv`, indices, masks) |
 | `logs/` | one log per DS02 script per run |
 
-Copying a finished report back onto the RDM is a deliberate manual step.
+Without `--to-rdm` nothing is written to the RDM.
 
 ## Code
 

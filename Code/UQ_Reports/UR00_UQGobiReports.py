@@ -1,7 +1,7 @@
 """Run DS02 QC on UQ RDM flights and build PDF reports with UQ extras.
 
-Point ``--path`` at any level of a UQ project on the RDM (project, site,
-sensor, date or run folder). For every run found this script:
+Point ``--path`` at one or more levels of a UQ project on the RDM (project,
+site, sensor, date or run folder). For every run found this script:
 
 1. stages the run read-only into ``<work>/staging`` under the APPN folder
    names DS02 needs (``2025MQN24-32/GOBI`` for ``MQN24-32_F/Gobi``);
@@ -14,12 +14,14 @@ sensor, date or run folder). For every run found this script:
 5. renders ``QC_report.pdf`` per run;
 
 then runs QA01_FlightComparison per project and renders its PDF. All PDFs
-are collected in ``<work>/reports/<project>/``. Nothing is ever written to
-the RDM: ``--work`` must be a local folder.
+are collected in ``<work>/reports/<project>/``. ``--work`` must be a local
+folder. The RDM is only read, unless ``--to-rdm`` is given: then each run's
+PDF is also copied to ``<run>/T1_proc/QC_reports/`` on the RDM (that file
+only; nothing else there is touched).
 
 Command-line Arguments
 ----------------------
---path : str
+--path : str (one or more)
     Any level of a UQ project tree on the RDM.
 --work : str
     Local working folder (staging copies, QC outputs, reports).
@@ -35,13 +37,15 @@ Command-line Arguments
     Don't run the cross-run QA01 comparison.
 --max-small-mb : float
     Copy any file up to this size when staging (default 5).
+--to-rdm : flag
+    Also copy each run's PDF to ``<run>/T1_proc/QC_reports/`` on the RDM.
 """
 
 # ==============================================================================
 
 __title__ = "UQ Gobi QC reports"
 __author__ = "Daniel Smith"
-__version__ = "v1.0(25.11.2026)"
+__version__ = "v1.1(26.11.2026)"
 __email__ = "daniel.smith3@uq.edu.au"
 
 # ==============================================================================
@@ -96,8 +100,9 @@ def main(args: argparse.Namespace) -> None:
     ur.refuse_rdm(work, "the working folder")
     env = subprocess_env()
     os.environ.update(env)   # this process plots too (numpy BLAS DLLs, GDAL_DATA)
-    runs = ur.find_uq_runs(pathlib.Path(args.path), args.sensor, args.dates)
-    print(f"Found {len(runs)} run(s) under {args.path}")
+    runs = list({r.path: r for p in args.path
+                 for r in ur.find_uq_runs(pathlib.Path(p), args.sensor, args.dates)}.values())
+    print(f"Found {len(runs)} run(s) under {', '.join(args.path)}")
 
     # ========== Per run ==========
     rows = [process_run(run, work, env, args) for run in tqdm(runs, desc="runs")]
@@ -148,8 +153,40 @@ def process_run(run: "ur.UQRun", work: pathlib.Path, env: Dict[str, str],
     dest = work / "reports" / run.project / f"{run.label}_QC_report.pdf"
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(pdf, dest)
-    return {"run": run.label, "rdm_path": str(run.path), **qc_statuses(qc_data),
-            "pdf": str(dest), "note": note}
+    row = {"run": run.label, "rdm_path": str(run.path), **qc_statuses(qc_data),
+           "pdf": str(dest), "note": note}
+    if args.to_rdm:
+        row["rdm_pdf"] = str(publish_to_rdm(dest, run))
+    return row
+
+
+# ==================================================================================
+def publish_to_rdm(pdf: pathlib.Path, run: "ur.UQRun",
+                   folder: str = "QC_reports") -> pathlib.Path:
+    """Copy a finished run report into the run's ``T1_proc/<folder>`` on the RDM.
+
+    Only creates ``folder`` (if missing) and writes the one PDF; an earlier
+    copy of the same report is replaced.
+
+    Parameters
+    ----------
+    pdf : pathlib.Path
+        Local report PDF.
+    run : UQRun
+        The run it belongs to.
+    folder : str, optional
+        Sub-folder of ``T1_proc``.
+
+    Returns
+    -------
+    pathlib.Path
+        The RDM copy.
+    """
+    dest = run.path / "T1_proc" / folder / pdf.name
+    dest.parent.mkdir(exist_ok=True)
+    shutil.copyfile(pdf, dest)
+    print(f"  -> {dest}")
+    return dest
 
 
 # ==================================================================================
@@ -342,8 +379,8 @@ if __name__ == "__main__":
 
     # ========== Parse args ==========
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--path", required=True,
-                        help="Any level of a UQ project tree on the RDM.")
+    parser.add_argument("--path", required=True, nargs="+",
+                        help="One or more levels of a UQ project tree on the RDM.")
     parser.add_argument("--work", required=True,
                         help="Local working folder (never on the RDM).")
     parser.add_argument("--sensor", nargs="+", default=["Gobi"],
@@ -358,4 +395,6 @@ if __name__ == "__main__":
                         help="Don't run the cross-run QA01 comparison.")
     parser.add_argument("--max-small-mb", type=float, default=5.0,
                         help="Copy any file up to this size when staging (default 5).")
+    parser.add_argument("--to-rdm", action="store_true",
+                        help="Also copy each run's PDF to <run>/T1_proc/QC_reports/ on the RDM.")
     main(parser.parse_args())
